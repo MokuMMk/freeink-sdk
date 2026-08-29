@@ -292,13 +292,18 @@ uint8_t InputManager::getDigitalState() const {
   if (isDigitalPressed(BoardConfig::ACTIVE.input.up)) state |= (1 << BTN_UP);
   if (isDigitalPressed(BoardConfig::ACTIVE.input.down)) state |= (1 << BTN_DOWN);
 #if FREEINK_DEVICE_EEGO_A4
-  if (BoardConfig::ACTIVE.board == BoardConfig::Board::EegoA4 &&
-      BoardConfig::ACTIVE.input.power >= 0 &&
-      digitalRead(BoardConfig::ACTIVE.input.power) ==
-          (BoardConfig::ACTIVE.input.powerActiveHigh ? HIGH : LOW) &&
-      BoardConfig::ACTIVE.inputStyle != BoardConfig::InputStyle::DigitalConfirmBackHold &&
-      BoardConfig::ACTIVE.inputStyle != BoardConfig::InputStyle::DigitalConfirmPowerHold) {
-    state |= (1 << BTN_POWER);
+  if (BoardConfig::ACTIVE.board == BoardConfig::Board::EegoA4) {
+    // A4 power key: self-contained polarity-aware read. The generic
+    // LOW-active fallback below must never see A4's idle pull-down level —
+    // it would report the un-pressed key as held forever (root cause of the
+    // 4508ms boot-time sleep on 118aa1e0). Non-A4 boards keep upstream logic.
+    if (BoardConfig::ACTIVE.input.power >= 0 &&
+        digitalRead(BoardConfig::ACTIVE.input.power) ==
+            (BoardConfig::ACTIVE.input.powerActiveHigh ? HIGH : LOW) &&
+        BoardConfig::ACTIVE.inputStyle != BoardConfig::InputStyle::DigitalConfirmBackHold &&
+        BoardConfig::ACTIVE.inputStyle != BoardConfig::InputStyle::DigitalConfirmPowerHold) {
+      state |= (1 << BTN_POWER);
+    }
   } else
 #endif
   if (isDigitalPressed(BoardConfig::ACTIVE.input.power) &&
