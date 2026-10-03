@@ -1,0 +1,15 @@
+{
+  "name": "ESP32Drop",
+  "version": "1.0.0",
+  "license": "0BSD AND Apache-2.0",
+  "description": "Receive-only AirDrop for ESP32-S3: the ESP32Drop library's AWDL link layer and TLS/HTTP application layer, ported to this tree's ESP-IDF 5.5.5 / mbedTLS 3 and wrapped in a small C API (esp32drop.h). An iPhone or Mac in 'Everyone' mode discovers the device, hands over its cpio archive, and every file in it is delivered to a caller callback as it is polled. Takes the radio exclusively (AWDL parks on 2.4 GHz channel 6), so it cannot run beside ordinary WiFi. Upstream is 0BSD (see LICENSE); not affiliated with Apple, AirDrop is a trademark of Apple Inc.",
+  "keywords": "airdrop, awdl, esp32-s3, receive, wireless, psk, transfer, tls",
+  "authors": [
+    {"name": "MIRO", "url": "https://github.com/s-iwaki-d/ESP32Drop", "maintainer": false},
+    {"name": "FreeInk SDK Contributors"}
+  ],
+  "dependencies": {},
+  "platforms": "espressif32",
+  "frameworks": ["arduino"],
+  "notes": "Readpico/ESP32-S3 only: needs 8 MB PSRAM and CONFIG_MBEDTLS_EXTERNAL_MEM_ALLOC=y (set in platformio.ini's [readpico_hardware]), because the TLS session buffers must live in PSRAM. Without it the device is silently undiscoverable rather than reporting an error. Do not add this library to any other env. Builds with C++20 -Wvolatile/-Wcomment warnings from the upstream sources; they are deliberately NOT silenced here because library.json build.flags leak into the whole build environment, and this library must not change how anything else is compiled."
+}
