@@ -31,6 +31,7 @@ extern "C" {
 // / epdiy headers without extern "C" guards are wrapped here; re-wrapping the
 // guarded ones is harmless.
 #include "e0470/include/e0470_epaper_waveform.h"
+#include "e0470/include/e0470_page_turn.h"
 #include "epdiy/include/epd_lcd.h"
 #include "epdiy/include/epd_waveform.h"
 #include "epdiy/src/epd_board.h"
@@ -403,6 +404,77 @@ bool epdiyLcdDraw(const uint8_t* fb, EpdiyLcdRefresh mode, bool turnOff) {
   recordConversion(conversionStartedUs);
 #endif
   return pushFrame(mode, turnOff);
+}
+
+// Switch the panel scan profile. FAST is what the phase-offset reveal runs on (its 21 ms
+// tick is built around a 7 ms scan: 1/3 drive, 2/3 hold, which is what makes each band's
+// step legible); everything else in this port runs FULL, whose line period is padded to
+// the waveform's calibrated frame period.
+//
+// The prefill has to move with the line period. At 10 µs/line a 32-line prefill underruns
+// the feed thread and later frames stop being emitted entirely (EPD_DRAW_EMPTY_LINE_QUEUE),
+// so FAST uses the config's fastPrefillLines. A board without a fast profile
+// (fastLine.leHighTime == 0) ignores this: the profile is a hint, not a contract.
+void epdiyLcdUseScan(bool fast) {
+  static bool s_fast = false;
+  if (!g_started || g_cfg == nullptr) return;
+  if (fast && g_cfg->fastLine.leHighTime == 0) return;
+  if (fast == s_fast) return;
+
+  const EpdiyLcdLineTiming& t = fast ? g_cfg->fastLine : g_cfg->line;
+  LcdLineTiming_t timing = {};
+  timing.le_high_time = t.leHighTime;
+  timing.line_front_porch = t.lineFrontPorch;
+  timing.line_end = t.lineEnd;
+  timing.ckv_high_time = t.ckvHighTime01us;
+  epd_lcd_set_line_timing(&timing);
+  epd_lcd_set_prefill_lines(fast ? g_cfg->fastPrefillLines : g_cfg->prefillLines);
+  s_fast = fast;
+}
+
+// Phase-offset page reveal: the new page is composed into back_fb exactly as a normal
+// push would, but instead of one difference-and-draw pass the panel is driven through
+// e0470_page_turn(), which staggers the reveal across 16 bands so the turn is visible.
+// Direction is the logical one the reader asked for; the engine maps it through the
+// current rotation. See e0470_page_turn.h for the vendor's credit.
+bool epdiyLcdPageTurn(const uint8_t* fb, int dir, bool turnOff) {
+  if (!g_started || fb == nullptr || g_fb4 == nullptr || g_cfg == nullptr) return false;
+
+  // Same base copy as epdiyLcdDraw: the caller's buffer is about to be reinterpreted by
+  // fillFrom1bpp(), and the AA commit path needs the original.
+  const size_t bytes = static_cast<size_t>(epd_width()) / 8 * static_cast<size_t>(epd_height());
+  if (g_base != nullptr) memcpy(g_base, fb, bytes);
+
+  fillFrom1bpp(fb);
+
+  epd_poweron();
+  if (!g_powerReady) {
+    g_baselineKnown = false;
+    ESP_LOGE("EpdiyLcd", "Panel power-on failed; page turn skipped");
+    epd_poweroff();
+    return false;
+  }
+
+  // Nothing trustworthy in front_fb to reveal over (first frame after boot, or the
+  // previous push failed). Fall through to a plain push so the page still appears.
+  if (!g_baselineKnown) {
+    epd_poweroff();
+    return pushFrame(EpdiyLcdRefresh::Fast, turnOff);
+  }
+
+  // The reveal runs on the fast scan. Its 21 ms tick is designed around a 7 ms frame --
+  // 1/3 drive and 2/3 hold -- and that hold is what makes each band's step legible; at
+  // FULL's 11.2 ms the steps blur together. Restore FULL afterwards so every other path
+  // keeps the line period the waveform is calibrated against.
+  epdiyLcdUseScan(true);
+  const auto err = e0470_page_turn(&g_hl, epd_full_screen(), static_cast<e0470_turn_dir_t>(dir));
+  epdiyLcdUseScan(false);
+  g_baselineKnown = err == EPD_DRAW_SUCCESS;
+  if (!g_baselineKnown) {
+    ESP_LOGE("EpdiyLcd", "Page turn failed (%u); falling back next frame", static_cast<unsigned>(err));
+  }
+  if (turnOff || !g_baselineKnown) epd_poweroff();
+  return g_baselineKnown;
 }
 
 void epdiyLcdStashBase(const uint8_t* fb) {

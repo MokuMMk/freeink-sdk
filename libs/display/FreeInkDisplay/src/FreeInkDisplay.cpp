@@ -738,6 +738,44 @@ void FreeInkDisplay::displayBuffer(RefreshMode mode, bool turnOffScreen, Refresh
   if (_panelSel != PanelSel::X3) _redRamSynced = true;
 }
 
+bool FreeInkDisplay::supportsPageTurn() const { return _driver != nullptr && _driver->supportsPageTurn(); }
+
+bool FreeInkDisplay::pageTurn(int dir, bool turnOffScreen) {
+  if (_driver == nullptr || !_driver->supportsPageTurn()) return false;
+
+  // Same preconditions as displayBuffer(): a pending grayscale pass or an async push
+  // would be presented by a different path, and the reveal has to own the panel.
+  cancelGrayscalePass();
+  _grayPassFailed = false;
+  syncPendingAsync();
+#if FREEINK_SSD1677_TEXT_ROUTING
+  _textAaPending = false;
+  selectTextAaDriver(false);
+  if (_bus.isBusy()) return false;
+#endif
+
+  // Keep the host framebuffer logical across the call, same inversion contract as
+  // displayBuffer(). The reveal reads the buffer through the driver, so invert in place
+  // and restore afterwards.
+  if (_inverted) invertBytes(frameBuffer, bufferSize);
+  const bool ok = _driver->pageTurn(_bus, frameBuffer, dir, turnOffScreen);
+  if (_inverted) invertBytes(frameBuffer, bufferSize);
+
+  _inversionDirty = false;
+  if (ok) {
+    if (_panelSel != PanelSel::X3) _redRamSynced = true;
+#ifndef EINK_DISPLAY_SINGLE_BUFFER_MODE
+    // Exactly what displayBuffer() does after a push: the revealed page becomes the
+    // previous frame, so the next page draws into the other buffer with a valid baseline.
+    swapBuffers();
+#endif
+  } else {
+    // Nothing was presented; the controller baseline is unknown until the next push.
+    _shadowValid = false;
+  }
+  return ok;
+}
+
 void FreeInkDisplay::displayBufferAsync(RefreshMode mode, RefreshContext context) {
   displayAsyncImpl(mode, /*turnOffScreen=*/false, false, context);
 }

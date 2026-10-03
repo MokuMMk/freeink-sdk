@@ -253,7 +253,30 @@ lcd_calculate_frame(RenderContext_t* ctx, int thread_id) {
             buf = lq_current(lq);
         }
 
-        ctx->lut_lookup_func(lp, buf, ctx->conversion_lut, ctx->display_width);
+        // Phase-offset refresh (epd_set_col_phase_luts / epd_set_line_phase_luts, see
+        // epdiy.h). Either every column band of this line converts with its own 1K LUT, or
+        // the whole line does. With neither set the line uses conversion_lut exactly as
+        // before, so the ordinary path pays one branch.
+        if (ctx->col_band_n > 0 && ctx->phase_luts != NULL && ctx->col_band_phase != NULL) {
+            // Each band writes only its own span, so start from a cleared line.
+            memset(buf, 0x00, ctx->display_width / 4);
+            for (int b = 0; b < ctx->col_band_n; b++) {
+                const int8_t phase = ctx->col_band_phase[b];
+                if (phase < 0) continue;
+                const int x0 = ctx->col_band_x0[b];
+                const int x1 = ctx->col_band_x1[b];
+                const int w = x1 - x0;
+                if (w < 4) continue;
+                ctx->lut_lookup_func((const uint32_t*)(ptr + x0), buf + x0 / 4, ctx->phase_luts[phase], (uint32_t)w);
+            }
+        } else {
+            const uint8_t* lut = ctx->conversion_lut;
+            if (ctx->line_phase != NULL && l < ctx->display_height) {
+                const int8_t phase = ctx->line_phase[l];
+                if (phase >= 0 && ctx->phase_luts != NULL) lut = ctx->phase_luts[phase];
+            }
+            ctx->lut_lookup_func(lp, buf, lut, ctx->display_width);
+        }
 
         // apply the line mask
         epd_apply_line_mask_VE(buf, ctx->line_mask, ctx->display_width / 4);

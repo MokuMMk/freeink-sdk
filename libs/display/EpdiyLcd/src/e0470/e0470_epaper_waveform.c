@@ -115,6 +115,37 @@ static void e0470_complete_du_build(void) {
     }
 }
 
+/* ---- 错相刷新用的空表 / Empty table for the phase-offset refresh ---- */
+// e0470_page_turn() 每拍只发一个相位，真正的动作由 epd_set_col_phase_luts() /
+// epd_set_line_phase_luts() 按带逐行提供，所以这条波形不需要自己的动作表：一相、全零的
+// 表让 epd_draw_base 接受 MODE_DU，并保证一次调用只扫一趟。
+// / e0470_page_turn() sends exactly one phase per tick and supplies the real per-band LUTs
+// / through epd_set_col_phase_luts() / epd_set_line_phase_luts(), so this waveform carries
+// / no actions of its own: a single zeroed phase lets epd_draw_base accept MODE_DU and make
+// / exactly one pass per call. Static, therefore already zero.
+static uint8_t e0470_apply_data[1][16][4];
+static const EpdWaveformPhases e0470_apply_phases = {
+    .phases = 1,
+    .phase_times = NULL,
+    .luts = (const uint8_t*)&e0470_apply_data[0],
+};
+static const EpdWaveformPhases* e0470_apply_ranges[] = {
+    &e0470_apply_phases,
+};
+static const EpdWaveformMode e0470_apply_mode = {
+    .type = 1,
+    .temp_ranges = 1,
+    .range_data = &e0470_apply_ranges[0],
+};
+static const EpdWaveformMode* e0470_apply_modes[] = {&e0470_apply_mode};
+
+const EpdWaveform E0470_APPLY_WAVEFORM = {
+    .num_modes = 1,
+    .num_temp_ranges = 1,
+    .mode_data = e0470_apply_modes,
+    .temp_intervals = e0470_intervals,
+};
+
 // 白底 15→15 源表全保持。挂在已经「往白推」的那一相上再推 1 帧，不增加相数。
 // 差分会跳过未变白像素，GL16 必须走全像素这帧才打到白底。
 // / Source 15→15 is all-hold. Hang one extra white push on an already-white

@@ -529,6 +529,16 @@ enum EpdDrawError epd_draw_base(
     const EpdWaveform* waveform
 );
 
+/// 错相刷新：扫描时按行选取 `phase_luts[line_phase[y]]`，只作用于下一次 `epd_draw_base`。
+/// `phase_luts[i]` 必须是 `epd_build_1ppB_lut_1k` 生成的 1K 表。`line_phase[y] < 0` 用默认表。
+void epd_set_line_phase_luts(const uint8_t* const* phase_luts, const int8_t* line_phase);
+
+/// 错相：同一行按列分段选取 LUT。`x0`/`x1` 半开区间，像素坐标应对齐到 16。
+/// `phase[i] < 0` 该段保持。只作用于下一次 `epd_draw_base`。
+void epd_set_col_phase_luts(
+    const uint8_t* const* phase_luts, const int* x0, const int* x1, const int8_t* phase, int nbands
+);
+
 /// 把波形第 `frame` 相展开成 1ppB / S3 VE 用的 1K 表（256 × uint32）。
 void epd_build_1ppB_lut_1k(uint8_t* lut, const EpdWaveformPhases* phases, int frame);
 

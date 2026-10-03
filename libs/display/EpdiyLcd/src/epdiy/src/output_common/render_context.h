@@ -59,6 +59,17 @@ typedef struct {
     // Lookup table space.
     uint8_t* conversion_lut;
 
+    /// Phase-offset refresh: each line picks its own 1K LUT. NULL means the whole
+    /// frame uses conversion_lut. Only set for the next epd_draw_base().
+    const uint8_t* const* phase_luts;
+    const int8_t* line_phase;
+    /// Phase-offset refresh: segments within one line swap LUTs by column. Half-open
+    /// [x0, x1) in pixels, aligned to 16. col_band_n == 0 disables it.
+    const int* col_band_x0;
+    const int* col_band_x1;
+    const int8_t* col_band_phase;
+    int col_band_n;
+
     /// LUT lookup function. Must not be NULL.
     lut_func_t lut_lookup_func;
     /// LUT building function. Must not be NULL

@@ -99,6 +99,14 @@ extern const EpdWaveform E0470_TEXTTURN_WAVEFORM;
 #define E0470_FOLLOW_FRAMES 8
 extern const EpdWaveform E0470_FOLLOW_WAVEFORM;
 
+/// 错相刷新（e0470_page_turn）专用的空表：一相、全零。真正的动作由
+/// epd_set_col_phase_luts() / epd_set_line_phase_luts() 按带逐行给出，这条波形只是让
+/// epd_draw_base 接受 MODE_DU 并只扫一趟。
+/// / Empty table for the phase-offset refresh: one zeroed phase. The real actions come from
+/// epd_set_col_phase_luts() / epd_set_line_phase_luts() per band and line; this waveform
+/// only lets epd_draw_base accept MODE_DU and make a single pass.
+extern const EpdWaveform E0470_APPLY_WAVEFORM;
+
 /// 按上面的公式生成 frames 帧的跟随表写进 dst（容量 frames×16×4 字节）。
 /// / Build a follow table of `frames` into dst (frames×16×4 bytes).
 void e0470_follow_lut_build(int frames, uint8_t (*dst)[16][4]);
