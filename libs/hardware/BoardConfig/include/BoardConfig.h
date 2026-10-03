@@ -464,6 +464,7 @@ enum class Board : uint8_t {
              // (16-bit i80 bus, SY7636A rails behind an FCA9555), CST836U touch +
              // 3 capacitive key zones, SC7A20H accelerometer, CW32L010 PMU
   WsEpaper397,  // SDK-managed Waveshare power and ordinary buttons.
+  MetalioEInk4,  // Upstream identity; local MetalioEink4 retains its calibration.
 };
 
 // How the board reports button presses.
@@ -522,7 +523,7 @@ enum class TouchController : uint8_t { None, Chsc6x, Gt911, Ft5x06, Gslx680, Ft6
 // recovered from the OEM firmware dump; see the consumer's audio notes.
 // M5 PaperColor ships an ES8311 mono codec + AW8737A speaker amp — the
 // contract comes from the official pin map and M5Unified's speaker bring-up.
-enum class AudioOutput : uint8_t { None, I2sDac, I2sEs8388, I2sEs8311, I2sEs8311Mclk16k, PwmBuzzer };
+enum class AudioOutput : uint8_t { None, I2sDac, I2sEs8388, I2sEs8311, I2sEs8311Mclk16k, PwmBuzzer, MetalioModule };
 
 // Optional addressable RGB LED strip. PaperColor has two RGB LEDs on GPIO21
 // behind the M5PM1 LDO3V3 RGB rail.
@@ -801,6 +802,12 @@ struct ViewableInsets {
   uint8_t left = 3;
 };
 
+struct HapticConfig {
+  int8_t gpio = PIN_UNASSIGNED;
+  bool activeHigh = true;
+  uint32_t pwmFrequency = 20000;
+};
+
 struct BoardProfile {
   Board board;
   const char* name;
@@ -856,6 +863,7 @@ struct BoardProfile {
   I2cFrontlightConfig i2cFrontlight = NO_I2C_FRONTLIGHT;
   // Native image grayscale capability; omitted by legacy aggregate profiles.
   uint8_t grayscaleLevels = 4;
+  HapticConfig haptic = {};
 };
 
 constexpr TouchConfig NO_TOUCH = {TouchController::None,
@@ -2287,6 +2295,7 @@ inline bool isX4Pro() { return ACTIVE.board == Board::XteinkX4Pro; }
 inline bool isX4Classic() { return ACTIVE.board == Board::XteinkX4Classic; }
 inline bool isPaperMono() { return ACTIVE.board == Board::PaperMono; }
 inline bool isEegoA4() { return ACTIVE.board == Board::EegoA4; }
+inline bool isMetalioEInk4() { return ACTIVE.board == Board::MetalioEInk4; }
 inline bool isMurphyM4() { return ACTIVE.board == Board::MurphyM4; }
 inline bool isWaveshareEpaper397() { return ACTIVE.board == Board::WaveshareEpaper397; }
 inline bool isOnePage() { return ACTIVE.board == Board::OnePage; }

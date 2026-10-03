@@ -122,6 +122,16 @@ void EpdiyLcdDriver::display(EpdBus& bus, const uint8_t* fb, const uint8_t* prev
   epdiyLcdDraw(fb, _lastBaseMode, turnOff);
 }
 
+bool EpdiyLcdDriver::pageTurn(EpdBus& bus, const uint8_t* fb, int dir, bool turnOff) {
+  (void)bus;
+  if (!_ready) return false;
+  // 揭页之后这一页就成了新的底图，后续灰阶提交要按同样的档位合成，所以记下档位。
+  // / The revealed page becomes the new base, so the grey commit composes against the
+  // same profile; remember it the way display() does.
+  _lastBaseMode = EpdiyLcdRefresh::Fast;
+  return epdiyLcdPageTurn(fb, dir, turnOff);
+}
+
 void EpdiyLcdDriver::copyGrayscaleLsb(EpdBus& bus, const uint8_t* lsb) {
   (void)bus;
   if (_lsb == nullptr || lsb == nullptr) return;

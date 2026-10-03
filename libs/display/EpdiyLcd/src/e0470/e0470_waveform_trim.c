@@ -12,8 +12,6 @@
 
 #include <string.h>
 
-#include "epdiy.h"
-
 #define MAX_PHASES 64
 
 // 表的字节布局：data[frame][to][from/4]，每字节高位起 4 个 2bit 动作。
@@ -27,8 +25,7 @@ static inline void lut_set(uint8_t (*data)[16][4], int f, int to, int from, int 
     data[f][to][from / 4] = (uint8_t)((data[f][to][from / 4] & ~(3 << shift)) | (v << shift));
 }
 
-// 一对 (from, to) 裁完之后的序列，先攒起来，等知道最长的一条再统一右对齐。
-// / Hold each trimmed (from, to) sequence until the longest is known, then right-align.
+// One reusable trimmed (from, to) sequence; two passes avoid a 17 KiB static workspace.
 typedef struct {
     uint8_t seq[MAX_PHASES];
     int len;
@@ -83,15 +80,15 @@ int e0470_waveform_trim(
     }
 
     const uint8_t(*data)[16][4] = (const uint8_t(*)[16][4])src->luts;
-    static trimmed_seq_t seqs[16][16];
+    uint8_t seq[MAX_PHASES];
+    trimmed_seq_t trimmed;
     int longest = 0;
 
     for (int to = 0; to < 16; to++) {
         for (int from = 0; from < 16; from++) {
-            uint8_t seq[MAX_PHASES];
             for (int f = 0; f < src->phases; f++) seq[f] = (uint8_t)lut_get(data, f, to, from);
-            trim_one(seq, src->phases, to, trim, &seqs[to][from]);
-            if (seqs[to][from].len > longest) longest = seqs[to][from].len;
+            trim_one(seq, src->phases, to, trim, &trimmed);
+            if (trimmed.len > longest) longest = trimmed.len;
         }
     }
 
@@ -101,7 +98,9 @@ int e0470_waveform_trim(
     memset(dst_data, 0, (size_t)phases * 16 * 4);
     for (int to = 0; to < 16; to++) {
         for (int from = 0; from < 16; from++) {
-            const trimmed_seq_t* t = &seqs[to][from];
+            for (int f = 0; f < src->phases; f++) seq[f] = (uint8_t)lut_get(data, f, to, from);
+            trim_one(seq, src->phases, to, trim, &trimmed);
+            const trimmed_seq_t* t = &trimmed;
             const int start = longest - t->len;  // 右对齐到保持相之前 / Right-align before the hold phases
             for (int i = 0; i < t->len; i++) lut_set(dst_data, start + i, to, from, t->seq[i]);
         }

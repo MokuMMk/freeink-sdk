@@ -176,6 +176,16 @@ class FreeInkDisplay {
   void displayBuffer(RefreshMode mode = FAST_REFRESH, bool turnOffScreen = false,
                      RefreshContext context = RefreshContext::Normal);
 
+  // Phase-offset page reveal: present the live framebuffer with a staggered reveal
+  // instead of one difference push. `dir` is an e0470_turn_dir_t in logical coordinates.
+  //
+  // Purely cosmetic; the page is on screen either way. Returns false when this panel has
+  // no implementation (supportsPageTurn() is false) or the reveal could not run, in which
+  // case the host should fall back to displayBuffer(). On success the buffers are swapped
+  // exactly as displayBuffer() would, so the next frame has the right previous baseline.
+  bool pageTurn(int dir, bool turnOffScreen = false);
+  bool supportsPageTurn() const;
+
   // Non-blocking refresh: pushes the frame, starts the panel waveform, and
   // returns (~25 ms) while the panel refreshes on its own (~0.3-2 s). Poll
   // refreshBusy(); the framebuffer is free to redraw the moment this returns

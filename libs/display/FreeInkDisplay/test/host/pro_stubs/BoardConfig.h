@@ -2,7 +2,7 @@
 #include <cstdint>
 #include <MurphyM4Batch.h>
 namespace BoardConfig {
-enum class Board { XteinkX3, XteinkX3Uc8279, XteinkX4, XteinkX4Pro, Sticky, WsEpaper397, WaveshareEpaper397, MetalioEink4 };
+enum class Board { XteinkX3, XteinkX3Uc8279, XteinkX4, XteinkX4Pro, Sticky, WsEpaper397, WaveshareEpaper397, MetalioEink4, MetalioEInk4 };
 enum class DisplayController { SSD1677, UC8179, UC8279 };
 struct ActiveProfile {
   uint8_t grayscaleLevels = 4;
@@ -17,5 +17,6 @@ struct ActiveProfile {
 inline ActiveProfile ACTIVE;
 constexpr uint32_t MAX_FRAMEBUFFER_BYTES=48000;
 inline void selectDevice(Board) {}
+inline bool isMetalioEInk4() { return ACTIVE.board == Board::MetalioEInk4; }
 inline bool isX4Classic() { return false; }
 }

@@ -2,6 +2,9 @@
 
 #include <Arduino.h>
 #include <BoardConfig.h>
+#if FREEINK_DEVICE_METALIO_EINK4
+#include <MetalioEink4Board.h>
+#endif
 #include <driver/gpio.h>
 #include <driver/rtc_io.h>
 #include <esp_sleep.h>
@@ -145,6 +148,13 @@ void holdRailLevel(int8_t pin, uint8_t level) {
 
 void PowerManager::powerDownRailsForSleep() {
   const auto& b = BoardConfig::ACTIVE;
+#if FREEINK_DEVICE_METALIO_EINK4
+  if (metalio::ready && !metalio::setOutput(metalio::output & ~metalio::PA_POWER)) {
+    if (Serial) Serial.printf("[PM] Metalio amplifier shutdown failed\n");
+  }
+  digitalWrite(44, LOW);
+  // Keep the shared display/SD rail up, as required by the calibrated BSP.
+#endif
 #if FREEINK_DEVICE_WS397
   // The EPD rail is an AXP2101 LDO, not a GPIO, so holdRailOff() below cannot
   // reach it — drop it here or the panel stays powered all through deep sleep.

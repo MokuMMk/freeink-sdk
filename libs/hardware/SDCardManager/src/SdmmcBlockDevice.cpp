@@ -3,6 +3,9 @@
 #if FREEINK_SD_SDMMC
 
 #include <Arduino.h>
+#if FREEINK_DEVICE_METALIO_EINK4
+#include <MetalioEink4Board.h>
+#endif
 #include <stdlib.h>
 #include <string.h>
 
@@ -38,6 +41,12 @@ constexpr uint32_t kSdmmcRetrySettleMs = 0;
 
 bool SdmmcBlockDevice::begin(const BoardConfig::SdmmcPins& pins) {
   if (pins.busWidth == 0) return false;
+
+#if FREEINK_DEVICE_METALIO_EINK4
+  // The calibrated BSP releases holds, keeps DAT3/CD input-high, and brings up
+  // the shared screen/SD rail. Reuse its idempotent boot sequence.
+  if (!metalio::begin()) return false;
+#endif
 
   // Host config matches the OEM (recovered from app1's mountSD via Ghidra): full
   // default capability flags (0x37) with the actual width selected via slot.width

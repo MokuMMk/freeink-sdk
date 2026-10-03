@@ -1,6 +1,9 @@
 #include "SDCardManager.h"
 
 #include <BoardConfig.h>
+#if FREEINK_DEVICE_METALIO_EINK4
+#include <MetalioEink4Board.h>
+#endif
 #include <SPI.h>
 #include <driver/gpio.h>
 #include <esp_task_wdt.h>
@@ -29,6 +32,9 @@ SDCardManager::SDCardManager() {}
 
 bool SDCardManager::begin() {
   if (initialized) return true;
+#if FREEINK_DEVICE_METALIO_EINK4
+  if (!freeink::metalio::begin()) return false;
+#endif
 
   // Native SDMMC: SdFat can't drive SDIO, so mount a plain FsVolume on the esp-idf
   // SDMMC block device. FsFile from this volume is the same type the SPI path
@@ -402,19 +408,28 @@ bool SDCardManager::writeFile(const char* path, const String& content) {
     return false;
   }
 
-  if (vol().exists(path)) {
-    vol().remove(path);
-  }
-
+  // Write beside the target and swap in only a complete copy: a short write or
+  // failed flush leaves the previous file untouched, never a truncated one.
+  const String tmp = String(path) + ".tmp";
   FsFile f;
-  if (!openFileForWrite("SD", path, f)) {
-    if (Serial) Serial.printf("Failed to open file for write: %s\n", path);
+  if (!openFileForWrite("SD", tmp.c_str(), f)) {
+    if (Serial) Serial.printf("Failed to open file for write: %s\n", tmp.c_str());
+    return false;
+  }
+  const bool complete = f.print(content) == content.length();
+  if (!f.close() || !complete) {
+    if (Serial) Serial.printf("Short write, keeping previous %s\n", path);
+    vol().remove(tmp.c_str());
     return false;
   }
 
-  const size_t written = f.print(content);
-  f.close();
-  return written == content.length();
+  // ponytail: a power cut between replaceFile's remove and rename leaves only
+  // the complete .tmp; recover it on read if that window ever matters.
+  if (!replaceFile(tmp.c_str(), path)) {
+    vol().remove(tmp.c_str());
+    return false;
+  }
+  return true;
 }
 
 bool SDCardManager::ensureDirectoryExists(const char* path) {

@@ -9,7 +9,7 @@ import tempfile
 
 source = (Path(__file__).resolve().parents[2] / "src/BleKeyboardHost.cpp").read_text()
 begin = source.split("bool BleKeyboardHost::begin(const char* hostName) {", 1)[1]
-begin = begin.split("\nvoid BleKeyboardHost::end()", 1)[0]
+begin = begin.split("\nbool BleKeyboardHost::end(", 1)[0]
 # Keep the branch around xTaskCreate as well as every subsequent statement.
 tail = begin[begin.rfind("\n", 0, begin.index("xTaskCreate(")) + 1:]
 harness = r'''

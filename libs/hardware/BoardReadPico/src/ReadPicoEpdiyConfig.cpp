@@ -66,11 +66,18 @@ struct Scan {
   int ckvHigh01us;
 };
 
-// read_pico_epd_scan() 的 FULL 档，去掉 profile/epd 依赖后的定值求解。
-// / read_pico_epd_scan() for the FULL profile, with the profile/epd dependencies
-// folded out. Only the FULL profile is used here: the fast profiles exist for the
-// vendor's follow/continuous DU, which this port does not drive.
-constexpr Scan solveScan(int pclkMhz, int width, int height) {
+// read_pico_epd_scan() 的定值求解，去掉 profile/epd 依赖。
+// / read_pico_epd_scan() with the profile/epd dependencies folded out.
+//
+// FULL 把行周期垫到波形标定的帧周期（11090µs）—— 驱动量正比于行周期，常规刷新要的就是
+// 那个标定值。FAST 不垫，取纯下界，于是帧周期 7.01ms、驱动量约为 FULL 的 63%；这是错相
+// 揭页要的：它的 21ms 每拍按 7ms 扫描设计（1/3 驱动 + 2/3 停留），条带的台阶才看得清。
+// / FULL pads the line period to the waveform's frame-period setpoint (11090 µs) because
+// drive scales with the line period and ordinary refreshes want the calibrated amount.
+// FAST takes the bare floor instead: a 7.01 ms frame driving ~63% of FULL. That is what
+// the phase-offset reveal wants -- its 21 ms tick is designed around a 7 ms scan (1/3
+// drive, 2/3 hold), which is what makes each band's step legible.
+constexpr Scan solveScan(int pclkMhz, int width, int height, bool fast) {
   const int ldl = width / kPxPerClk;
   const int vAll = kFrameStartLines + kFrameBackLines + height + kFrameEndLines;
   const int lsl = clocksForNs(kLineStartMinNs, pclkMhz);
@@ -79,8 +86,10 @@ constexpr Scan solveScan(int pclkMhz, int width, int height) {
   // 余量给 L_EL，让 L_DL 落在 CKV 高电平里；后肩只取规格下界。
   // / Slack goes to L_EL so L_DL sits inside CKV high; back porch is the floor.
   int lineUs = ceilDiv(ldl + lsl + lbl + kLineEndMinClk, pclkMhz);
-  const int targetLineUs = (kFrameTargetUs + vAll / 2) / vAll;
-  if (targetLineUs > lineUs) lineUs = targetLineUs;
+  if (!fast) {
+    const int targetLineUs = (kFrameTargetUs + vAll / 2) / vAll;
+    if (targetLineUs > lineUs) lineUs = targetLineUs;
+  }
 
   int lineClocks = lineUs * pclkMhz;
   int lel = lineClocks - ldl - lsl - lbl;
@@ -104,12 +113,24 @@ constexpr Scan solveScan(int pclkMhz, int width, int height) {
 constexpr int kPanelWidth = 1216;
 constexpr int kPanelHeight = 684;
 constexpr int kPclkMhz = READPICO_PCLK_HZ / 1000000;
-constexpr Scan kScan = solveScan(kPclkMhz, kPanelWidth, kPanelHeight);
+constexpr Scan kScan = solveScan(kPclkMhz, kPanelWidth, kPanelHeight, /*fast=*/false);
+// 18 MHz 下 FAST 解出 10µs/行：6+15+152+7 = 180 clk，帧周期 7.010ms（FULL 是 16µs /
+// 288 clk / 11.216ms）—— 与厂商 read_pico_epd_scan() 的 FAST 档一致。
+// / FAST solves to 10 µs/line at 18 MHz: 6+15+152+7 = 180 clk, a 7.010 ms frame (FULL is
+// 16 µs / 288 clk / 11.216 ms), matching the vendor's read_pico_epd_scan() FAST profile.
+constexpr Scan kFastScan = solveScan(kPclkMhz, kPanelWidth, kPanelHeight, /*fast=*/true);
 
 // FULL 档的预填行数：一行 16µs，喂线程余量大，32 行实测无欠载，帧间隙归零。
 // / FULL-profile prefill: 16 µs/line leaves slack, 32 lines measured underrun-free
 // and closes the frame gap.
 constexpr uint8_t kPrefillLines = 32;
+
+// FAST 档的预填行数：一行只有 10µs，32 行会欠载（EPD_DRAW_EMPTY_LINE_QUEUE，后续帧不再
+// 输出），厂商实测 48/64 都无欠载，取 64 留余量。
+// / FAST-profile prefill: at 10 µs/line a 32-line prefill underruns
+// (EPD_DRAW_EMPTY_LINE_QUEUE, later frames stop outputting); the vendor measured 48 and 64
+// both underrun-free and took 64 for margin.
+constexpr uint8_t kFastPrefillLines = 64;
 
 }  // namespace
 
@@ -138,6 +159,10 @@ const EpdiyLcdConfig& readPicoEpdiyConfig() {
       // implement the verified board_poweron() order with the VCOM gate before any
       // rail comes up.
       {&BoardReadPico::epdPrepare, &BoardReadPico::epdPowerOn, &BoardReadPico::epdPowerOff, nullptr},
+      // 快速档：错相揭页用。10µs/行，预填必须 64（见 kFastPrefillLines）。
+      // / Fast profile, used by the phase-offset reveal: 10 µs/line with the 64-line prefill.
+      {kFastScan.lineStart, kFastScan.lineBackPorch, kFastScan.lineEnd, kFastScan.ckvHigh01us},
+      kFastPrefillLines,
   };
   return cfg;
 }

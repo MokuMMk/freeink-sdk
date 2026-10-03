@@ -134,6 +134,8 @@ static inline int64_t esp_timer_get_time(void) { return 0; }
         subprocess.run([str(binary)], check=True)
         from test_resources import run as run_resources
         run_resources(root, includes)
+        from test_waveform_trim import run as run_waveform_trim
+        run_waveform_trim()
         print("Read Pico display, resource failures, clear masks and concurrent PMU checks passed")
 
 

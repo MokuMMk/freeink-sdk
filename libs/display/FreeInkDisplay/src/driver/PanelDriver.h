@@ -60,6 +60,22 @@ class PanelDriver {
     display(bus, fb, prev, RefreshMode::Fast, turnOff);
   }
 
+  // Optional phase-offset page reveal: a cosmetic transition that drives the panel
+  // through a staggered set of phase offsets so the turn is visible, instead of one
+  // difference push. `dir` is an e0470_turn_dir_t in logical coordinates. Returns false
+  // when the panel could not run it, so the caller can fall back to display().
+  //
+  // Default is "unsupported". Only EpdiyLcdDriver implements it today (the Read Pico
+  // panel is the one the engine was written for), so every other board keeps this body.
+  virtual bool pageTurn(EpdBus& bus, const uint8_t* fb, int dir, bool turnOff) {
+    (void)bus;
+    (void)fb;
+    (void)dir;
+    (void)turnOff;
+    return false;
+  }
+  virtual bool supportsPageTurn() const { return false; }
+
   // True when displayStart() defers (returns true) rather than completing
   // inline. Lets the facade skip async scaffolding (shadow setup) on blocking
   // drivers without a trial call, and lets hosts size overlap buffers up

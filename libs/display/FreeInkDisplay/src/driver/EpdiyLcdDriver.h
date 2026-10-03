@@ -70,6 +70,12 @@ class EpdiyLcdDriver : public PanelDriver {
   void deepSleep(EpdBus& bus) override;
   void display(EpdBus& bus, const uint8_t* fb, const uint8_t* prev, RefreshMode mode, bool turnOff) override;
 
+  // Phase-offset page reveal. Only this controller implements it (Read Pico's E0470A01 is
+  // the board the engine was written for); every other driver keeps the base default of
+  // "unsupported", and callers fall back to a normal display().
+  bool pageTurn(EpdBus& bus, const uint8_t* fb, int dir, bool turnOff) override;
+  bool supportsPageTurn() const override { return _ready; }
+
   // 抗锯齿用整体平面路径（supportsStripGrayscale() 保持默认 false，于是宿主走
   // copyGrayscaleLsb/Msb + displayGrayBuffer）：先把两个选择平面存下来，提交时由
   // EpdiyLcd 用底图加中间灰合成。

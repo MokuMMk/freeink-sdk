@@ -5,6 +5,10 @@
 #include <freertos/FreeRTOS.h>
 #include <freertos/semphr.h>
 
+#if FREEINK_DEVICE_METALIO_EINK4
+#include <MetalioEink4Board.h>
+#endif
+
 #if FREEINK_DEVICE_PAPERMONO
 #include <PaperMonoBoard.h>
 #endif
@@ -24,6 +28,12 @@ namespace {
 // EPD power/reset for boards without direct GPIOs: SDK board support first,
 // then the consumer hooks.
 void boardEpdPower(bool enabled) {
+#if FREEINK_DEVICE_METALIO_EINK4
+  // The calibrated fork BSP owns the shared screen/SD rail. begin() is
+  // idempotent; refresh teardown must leave this rail on until hardware off.
+  if (enabled) freeink::metalio::begin();
+  return;
+#endif
 #if FREEINK_DEVICE_PAPERMONO
   freeink::papermono::setEpdPower(enabled);
 #elif FREEINK_DEVICE_WS397
@@ -33,6 +43,9 @@ void boardEpdPower(bool enabled) {
 #endif
 }
 bool boardEpdPowerAvailable() {
+#if FREEINK_DEVICE_METALIO_EINK4
+  return true;
+#endif
 #if FREEINK_DEVICE_PAPERMONO || FREEINK_DEVICE_WS397
   return true;
 #else
